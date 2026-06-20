@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChatApp</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: "Segoe UI", sans-serif;
+            background: #111b21;
+            color: #e9edef;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* ── LOGIN ── */
+        .login-screen {
+            background: #202c33;
+            padding: 40px 36px;
+            border-radius: 12px;
+            width: 380px;
+            text-align: center;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+        }
+
+        .login-logo {
+            width: 72px;
+            height: 72px;
+            background: #00a884;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            margin: 0 auto 20px;
+        }
+
+        .login-screen h1 { font-size: 24px; font-weight: 600; margin-bottom: 6px; color: #e9edef; }
+        .login-screen p { color: #8696a0; font-size: 14px; margin-bottom: 28px; }
+
+        .login-screen input, .login-screen select {
+            width: 100%;
+            padding: 12px 16px;
+            background: #2a3942;
+            border: none;
+            border-bottom: 2px solid #00a884;
+            border-radius: 6px 6px 0 0;
+            color: #e9edef;
+            font-size: 15px;
+            margin-bottom: 16px;
+            outline: none;
+        }
+
+        .login-screen select { border-radius: 6px; border: none; border-bottom: 2px solid #00a884; cursor: pointer; }
+        .login-screen select option { background: #2a3942; }
+
+        .join-btn {
+            width: 100%;
+            padding: 13px;
+            background: #00a884;
+            border: none;
+            border-radius: 24px;
+            color: white;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 8px;
+            letter-spacing: 0.5px;
+            transition: background 0.2s;
+        }
+        .join-btn:hover { background: #06cf9c; }
+
+        /* ── MAIN LAYOUT ── */
+        .chat-app {
+            display: none;
+            width: 1000px;
+            height: 95vh;
+            max-height: 780px;
+            background: #111b21;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.8);
+        }
+        .chat-app.visible { display: flex; }
+
+        /* ── LEFT PANEL ── */
+        .left-panel {
+            width: 280px;
+            background: #111b21;
+            border-right: 1px solid #222d34;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        .left-header {
+            background: #202c33;
+            padding: 14px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #00a884;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 700;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .left-header-title { font-size: 16px; font-weight: 600; color: #e9edef; }
+
+        .search-bar {
+            padding: 8px 12px;
+            background: #111b21;
+        }
+
+        .search-bar input {
+            width: 100%;
+            padding: 8px 14px 8px 36px;
+            background: #202c33;
+            border: none;
+            border-radius: 8px;
+            color: #e9edef;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .search-bar input::placeholder { color: #8696a0; }
+
+        .search-wrap { position: relative; }
+        .search-icon {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #8696a0;
+            font-size: 14px;
+        }
+
+        /* Room list */
+        .rooms-section { padding: 8px 0 4px; }
+        .rooms-label {
+            padding: 4px 16px 6px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #8696a0;
+        }
+
+        .room-item {
+            padding: 13px 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            transition: background 0.1s;
+            border-bottom: 1px solid #1e2a30;
+        }
+        .room-item:hover { background: #202c33; }
+        .room-item.active { background: #2a3942; }
+
+        .room-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .room-icon.general { background: #00a884; }
+        .room-icon.tech { background: #0078d4; }
+        .room-icon.random { background: #8b5cf6; }
+        .room-icon.default { background: #667781; }
+
+        .room-info { flex: 1; min-width: 0; }
+        .room-name { font-size: 15px; font-weight: 500; color: #e9edef; }
+        .room-preview { font-size: 13px; color: #8696a0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+
+        /* Online users */
+        .online-section { flex: 1; overflow-y: auto; border-top: 1px solid #222d34; padding-top: 4px; }
+        .online-label {
+            padding: 10px 16px 6px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #8696a0;
+        }
+
+        .online-user {
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            color: #e9edef;
+        }
+
+        .online-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #667781;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 600;
+            color: white;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .online-badge {
+            position: absolute;
+            bottom: 1px;
+            right: 1px;
+            width: 10px;
+            height: 10px;
+            background: #00a884;
+            border-radius: 50%;
+            border: 2px solid #111b21;
+        }
+
+        /* ── RIGHT PANEL ── */
+        .right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #0b141a;
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23182229' fill-opacity='0.8'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            overflow: hidden;
+        }
+
+        .chat-header {
+            background: #202c33;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            border-bottom: 1px solid #111b21;
+        }
+
+        .chat-header-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .chat-header-info { flex: 1; }
+        .chat-header-name { font-size: 15px; font-weight: 600; color: #e9edef; }
+        .chat-header-status { font-size: 12px; color: #8696a0; margin-top: 1px; }
+
+        /* Messages */
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 60px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .messages::-webkit-scrollbar { width: 5px; }
+        .messages::-webkit-scrollbar-thumb { background: #374045; border-radius: 3px; }
+
+        /* Date divider */
+        .date-divider {
+            text-align: center;
+            margin: 10px 0;
+        }
+        .date-divider span {
+            background: #182229;
+            color: #8696a0;
+            font-size: 12px;
+            padding: 4px 12px;
+            border-radius: 8px;
+        }
+
+        /* Message bubble */
+        .message {
+            max-width: 60%;
+            padding: 7px 10px 4px 10px;
+            border-radius: 8px;
+            font-size: 14px;
+            line-height: 1.5;
+            word-break: break-word;
+            position: relative;
+            margin-bottom: 1px;
+        }
+
+        .message.mine {
+            align-self: flex-end;
+            background: #005c4b;
+            border-top-right-radius: 2px;
+        }
+
+        .message.theirs {
+            align-self: flex-start;
+            background: #202c33;
+            border-top-left-radius: 2px;
+        }
+
+        .msg-sender {
+            font-size: 12px;
+            font-weight: 600;
+            color: #00a884;
+            margin-bottom: 2px;
+        }
+
+        .msg-text { color: #e9edef; }
+
+        .msg-meta {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 4px;
+            margin-top: 3px;
+        }
+
+        .msg-time { font-size: 11px; color: #8696a0; }
+
+        .msg-tick { font-size: 12px; color: #53bdeb; }
+
+        /* Tail on bubble */
+        .message.mine::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            right: -8px;
+            width: 0;
+            border: 8px solid transparent;
+            border-top-color: #005c4b;
+            border-right: 0;
+        }
+
+        .message.theirs::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: -8px;
+            width: 0;
+            border: 8px solid transparent;
+            border-top-color: #202c33;
+            border-left: 0;
+        }
+
+        /* System msg */
+        .system-msg {
+            text-align: center;
+            margin: 8px 0;
+        }
+        .system-msg span {
+            background: #182229;
+            color: #8696a0;
+            font-size: 12px;
+            padding: 4px 14px;
+            border-radius: 8px;
+        }
+
+        /* Typing */
+        .typing-indicator {
+            padding: 4px 60px;
+            font-size: 13px;
+            color: #8696a0;
+            min-height: 22px;
+            font-style: italic;
+        }
+
+        /* Input bar */
+        .input-bar {
+            padding: 10px 16px;
+            background: #202c33;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .emoji-btn, .attach-btn {
+            background: none;
+            border: none;
+            color: #8696a0;
+            font-size: 22px;
+            cursor: pointer;
+            padding: 4px;
+            flex-shrink: 0;
+            line-height: 1;
+        }
+        .emoji-btn:hover, .attach-btn:hover { color: #e9edef; }
+
+        .msg-input {
+            flex: 1;
+            padding: 10px 16px;
+            background: #2a3942;
+            border: none;
+            border-radius: 24px;
+            color: #e9edef;
+            font-size: 15px;
+            outline: none;
+        }
+        .msg-input::placeholder { color: #8696a0; }
+
+        .send-btn {
+            width: 46px;
+            height: 46px;
+            background: #00a884;
+            border: none;
+            border-radius: 50%;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: background 0.2s;
+        }
+        .send-btn:hover { background: #06cf9c; }
+
+        /* ── Online user (clickable for DM) ── */
+        .online-user { cursor: pointer; border-radius: 6px; transition: background 0.1s; }
+        .online-user:hover { background: #202c33; }
+        .online-user.dm-active { background: #2a3942; }
+
+        /* ── Message hover actions (react button) ── */
+        .message { padding-bottom: 6px; }
+        .msg-actions {
+            position: absolute;
+            top: -14px;
+            right: 6px;
+            display: none;
+            background: #233138;
+            border-radius: 14px;
+            padding: 3px 6px;
+            gap: 2px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+            z-index: 5;
+        }
+        .message.theirs .msg-actions { right: auto; left: 6px; }
+        .message:hover .msg-actions { display: flex; }
+        .react-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px 3px;
+            line-height: 1;
+            border-radius: 8px;
+        }
+        .react-btn:hover { background: #2a3942; }
+
+        /* ── Reaction pills under a message ── */
+        .msg-reactions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 4px;
+        }
+        .reaction-pill {
+            background: #2a3942;
+            border: 1px solid #374045;
+            border-radius: 12px;
+            padding: 1px 7px;
+            font-size: 12px;
+            color: #e9edef;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            line-height: 1.6;
+        }
+        .reaction-pill.mine-reacted { border-color: #00a884; background: #0d2b25; }
+        .reaction-pill:hover { background: #374045; }
+
+        /* ── DM panel ── */
+        .dm-panel {
+            position: fixed;
+            top: 0;
+            right: -360px;
+            width: 360px;
+            height: 100vh;
+            background: #111b21;
+            border-left: 1px solid #222d34;
+            display: flex;
+            flex-direction: column;
+            transition: right 0.25s ease;
+            z-index: 50;
+            box-shadow: -8px 0 30px rgba(0,0,0,0.5);
+        }
+        .dm-panel.open { right: 0; }
+
+        .dm-header {
+            background: #202c33;
+            padding: 14px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px solid #111b21;
+            flex-shrink: 0;
+        }
+        .dm-close-btn {
+            background: none;
+            border: none;
+            color: #8696a0;
+            font-size: 20px;
+            cursor: pointer;
+            margin-left: auto;
+        }
+        .dm-close-btn:hover { color: #e9edef; }
+        .dm-header-name { font-size: 15px; font-weight: 600; color: #e9edef; }
+        .dm-header-sub { font-size: 12px; color: #8696a0; }
+
+        .dm-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            background: #0b141a;
+        }
+        .dm-messages::-webkit-scrollbar { width: 5px; }
+        .dm-messages::-webkit-scrollbar-thumb { background: #374045; border-radius: 3px; }
+
+        .dm-empty {
+            color: #8696a0;
+            font-size: 13px;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .dm-input-bar {
+            padding: 10px 14px;
+            background: #202c33;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        .dm-input {
+            flex: 1;
+            padding: 9px 14px;
+            background: #2a3942;
+            border: none;
+            border-radius: 22px;
+            color: #e9edef;
+            font-size: 14px;
+            outline: none;
+        }
+        .dm-input::placeholder { color: #8696a0; }
+        .dm-send-btn {
+            width: 40px;
+            height: 40px;
+            background: #00a884;
+            border: none;
+            border-radius: 50%;
+            color: white;
+            font-size: 17px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .dm-send-btn:hover { background: #06cf9c; }
+
+        .dm-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.3);
+            z-index: 40;
+            display: none;
+        }
+        .dm-overlay.open { display: block; }
+    </style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-screen" id="login-screen">
+    <div class="login-logo">&#128172;</div>
+    <h1>ChatApp</h1>
+    <p>Fast, simple, secure messaging</p>
+    <input type="text" id="username-input" placeholder="Your name..." maxlength="20" />
+    <select id="room-select">
+        <option value="general">&#127758; General</option>
+        <option value="tech">&#128187; Tech</option>
+        <option value="random">&#127922; Random</option>
+    </select>
+    <button class="join-btn" onclick="joinChat()">Continue</button>
+</div>
+
+<!-- MAIN APP -->
+<div class="chat-app" id="chat-app">
+
+    <!-- Left panel -->
+    <div class="left-panel">
+        <div class="left-header">
+            <div class="user-avatar" id="my-avatar">?</div>
+            <div class="left-header-title">ChatApp</div>
+        </div>
+
+        <div class="search-bar">
+            <div class="search-wrap">
+                <span class="search-icon">&#128269;</span>
+                <input type="text" placeholder="Search or start new chat" />
+            </div>
+        </div>
+
+        <div class="rooms-section">
+            <div class="rooms-label">Rooms</div>
+            <div id="rooms-list"></div>
+        </div>
+
+        <div class="online-section">
+            <div class="online-label">Online</div>
+            <div id="online-users"></div>
+        </div>
+    </div>
+
+    <!-- Right panel -->
+    <div class="right-panel">
+        <div class="chat-header">
+            <div class="chat-header-avatar" id="header-avatar">&#127758;</div>
+            <div class="chat-header-info">
+                <div class="chat-header-name" id="current-room-title">General</div>
+                <div class="chat-header-status" id="online-count">0 online</div>
+            </div>
+        </div>
+
+        <div class="messages" id="messages">
+            <div class="date-divider"><span>Today</span></div>
+        </div>
+
+        <div class="typing-indicator" id="typing-indicator"></div>
+
+        <div class="input-bar">
+            <button class="emoji-btn">&#128512;</button>
+            <input class="msg-input" type="text" id="msg-input"
+                placeholder="Type a message"
+                onkeydown="handleMsgKey(event)"
+                oninput="handleTyping()"
+                maxlength="500" />
+            <button class="send-btn" onclick="sendMessage()">&#10148;</button>
+        </div>
+    </div>
+
+</div>
+
+<!-- DM overlay (click to close panel) -->
+<div class="dm-overlay" id="dm-overlay" onclick="closeDM()"></div>
+
+<!-- Private message panel -->
+<div class="dm-panel" id="dm-panel">
+    <div class="dm-header">
+        <div class="online-avatar" id="dm-avatar" style="position: relative;">?</div>
+        <div>
+            <div class="dm-header-name" id="dm-with-name">User</div>
+            <div class="dm-header-sub">Private message</div>
+        </div>
+        <button class="dm-close-btn" onclick="closeDM()">&times;</button>
+    </div>
+    <div class="dm-messages" id="dm-messages"></div>
+    <div class="dm-input-bar">
+        <input class="dm-input" type="text" id="dm-input"
+            placeholder="Type a private message"
+            onkeydown="handleDmKey(event)"
+            maxlength="500" />
+        <button class="dm-send-btn" onclick="sendDM()">&#10148;</button>
+    </div>
+</div>
+
+<script>
+var socket = io();
+var myUsername = "";
+var currentRoom = "general";
+var typingTimer = null;
+var isTyping = false;
+var availableRooms = ["general", "tech", "random"];
+var REACTION_EMOJIS = ["👍", "❤️", "😂"];
+
+var roomIcons = { general: "&#127758;", tech: "&#128187;", random: "&#127922;" };
+var roomColors = { general: "general", tech: "tech", random: "random" };
+
+// DM state
+var currentDmUser = null; // username currently open in the DM panel
+
+socket.on("rooms_list", function(rooms) {
+    availableRooms = rooms;
+});
+
+function getInitial(name) {
+    return name ? name.charAt(0).toUpperCase() : "?";
+}
+
+function joinChat() {
+    var username = document.getElementById("username-input").value.trim();
+    var room = document.getElementById("room-select").value;
+    if (!username) { alert("Please enter your name!"); return; }
+
+    myUsername = username;
+    currentRoom = room;
+
+    socket.emit("join", { username: username, room: room });
+
+    document.getElementById("login-screen").style.display = "none";
+    document.getElementById("chat-app").style.display = "flex";
+    document.getElementById("my-avatar").textContent = getInitial(username);
+    document.getElementById("current-room-title").textContent = room.charAt(0).toUpperCase() + room.slice(1);
+    document.getElementById("header-avatar").innerHTML = roomIcons[room] || "&#128172;";
+
+    renderRooms(availableRooms);
+    document.getElementById("msg-input").focus();
+}
+
+document.getElementById("username-input").addEventListener("keydown", function(e) {
+    if (e.key === "Enter") joinChat();
+});
+
+function renderRooms(rooms) {
+    var container = document.getElementById("rooms-list");
+    container.innerHTML = "";
+    for (var i = 0; i < rooms.length; i++) {
+        var room = rooms[i];
+        var div = document.createElement("div");
+        div.className = "room-item" + (room === currentRoom ? " active" : "");
+        div.setAttribute("data-room", room);
+
+        var iconDiv = document.createElement("div");
+        iconDiv.className = "room-icon " + (roomColors[room] || "default");
+        iconDiv.innerHTML = roomIcons[room] || "&#128172;";
+
+        var infoDiv = document.createElement("div");
+        infoDiv.className = "room-info";
+        infoDiv.innerHTML = "<div class='room-name'>" + room.charAt(0).toUpperCase() + room.slice(1) + "</div><div class='room-preview'>Tap to join</div>";
+
+        div.appendChild(iconDiv);
+        div.appendChild(infoDiv);
+
+        div.onclick = (function(r) { return function() { switchRoom(r); }; })(room);
+        container.appendChild(div);
+    }
+}
+
+function switchRoom(newRoom) {
+    if (newRoom === currentRoom) return;
+    currentRoom = newRoom;
+    socket.emit("switch_room", { newRoom: newRoom });
+    document.getElementById("current-room-title").textContent = newRoom.charAt(0).toUpperCase() + newRoom.slice(1);
+    document.getElementById("header-avatar").innerHTML = roomIcons[newRoom] || "&#128172;";
+    document.getElementById("messages").innerHTML = "<div class='date-divider'><span>Today</span></div>";
+    document.getElementById("typing-indicator").textContent = "";
+    var items = document.querySelectorAll(".room-item");
+    for (var i = 0; i < items.length; i++) {
+        items[i].classList.toggle("active", items[i].getAttribute("data-room") === newRoom);
+    }
+    document.getElementById("msg-input").focus();
+}
+
+function sendMessage() {
+    var input = document.getElementById("msg-input");
+    var text = input.value.trim();
+    if (!text) return;
+    socket.emit("send_message", { text: text });
+    input.value = "";
+    stopTyping();
+}
+
+function handleMsgKey(e) { if (e.key === "Enter") sendMessage(); }
+
+function handleTyping() {
+    if (!isTyping) { isTyping = true; socket.emit("typing", { isTyping: true }); }
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(stopTyping, 1500);
+}
+
+function stopTyping() {
+    if (isTyping) { isTyping = false; socket.emit("typing", { isTyping: false }); }
+    clearTimeout(typingTimer);
+}
+
+// ── Message history on join / room switch ──
+socket.on("room_history", function(data) {
+    var messages = document.getElementById("messages");
+    messages.innerHTML = "<div class='date-divider'><span>Today</span></div>";
+    for (var i = 0; i < data.messages.length; i++) {
+        var m = data.messages[i];
+        addMessage(m.username, m.text, m.timestamp, m.username === myUsername, m.id, m.reactions || {});
+    }
+});
+
+socket.on("new_message", function(data) {
+    addMessage(data.username, data.text, data.timestamp, data.username === myUsername, data.id, {});
+});
+
+socket.on("user_joined", function(data) { addSystemMessage(data.message); });
+socket.on("user_left", function(data) { addSystemMessage(data.message); });
+
+socket.on("room_users", function(usersList) {
+    var container = document.getElementById("online-users");
+    var countEl = document.getElementById("online-count");
+    container.innerHTML = "";
+    for (var i = 0; i < usersList.length; i++) {
+        var uname = usersList[i];
+        var div = document.createElement("div");
+        div.className = "online-user" + (uname === currentDmUser ? " dm-active" : "");
+        if (uname !== myUsername) {
+            div.onclick = (function(u) { return function() { openDM(u); }; })(uname);
+            div.title = "Message " + uname + " privately";
+        }
+        var av = document.createElement("div");
+        av.className = "online-avatar";
+        av.textContent = getInitial(uname);
+        var badge = document.createElement("div");
+        badge.className = "online-badge";
+        av.appendChild(badge);
+        div.appendChild(av);
+        div.appendChild(document.createTextNode(uname + (uname === myUsername ? " (you)" : "")));
+        container.appendChild(div);
+    }
+    countEl.textContent = usersList.length + " online";
+});
+
+socket.on("user_typing", function(data) {
+    var el = document.getElementById("typing-indicator");
+    el.textContent = data.isTyping ? data.username + " is typing..." : "";
+});
+
+socket.on("room_switched", function() { renderRooms(availableRooms); });
+
+function buildReactionPicker(messageId, scope, target) {
+    var wrap = document.createElement("div");
+    wrap.className = "msg-actions";
+    for (var i = 0; i < REACTION_EMOJIS.length; i++) {
+        var emoji = REACTION_EMOJIS[i];
+        var btn = document.createElement("button");
+        btn.className = "react-btn";
+        btn.textContent = emoji;
+        btn.onclick = (function(e) {
+            return function(ev) {
+                ev.stopPropagation();
+                socket.emit("react_message", { messageId: messageId, emoji: e, scope: scope, target: target });
+            };
+        })(emoji);
+        wrap.appendChild(btn);
+    }
+    return wrap;
+}
+
+function buildReactionPills(messageId, reactionsObj, scope, target) {
+    var wrap = document.createElement("div");
+    wrap.className = "msg-reactions";
+    for (var emoji in reactionsObj) {
+        if (!reactionsObj.hasOwnProperty(emoji)) continue;
+        var voters = reactionsObj[emoji];
+        if (!voters || voters.length === 0) continue;
+        var pill = document.createElement("span");
+        pill.className = "reaction-pill" + (voters.indexOf(myUsername) !== -1 ? " mine-reacted" : "");
+        pill.textContent = emoji + " " + voters.length;
+        pill.title = voters.join(", ");
+        pill.onclick = (function(e) {
+            return function() {
+                socket.emit("react_message", { messageId: messageId, emoji: e, scope: scope, target: target });
+            };
+        })(emoji);
+        wrap.appendChild(pill);
+    }
+    return wrap;
+}
+
+function addMessage(username, text, timestamp, isMine, messageId, reactionsObj) {
+    var messages = document.getElementById("messages");
+    var div = document.createElement("div");
+    div.className = "message " + (isMine ? "mine" : "theirs");
+    div.setAttribute("data-message-id", messageId);
+
+    div.appendChild(buildReactionPicker(messageId, "room", currentRoom));
+
+    if (!isMine) {
+        var sender = document.createElement("div");
+        sender.className = "msg-sender";
+        sender.textContent = username;
+        div.appendChild(sender);
+    }
+
+    var textDiv = document.createElement("div");
+    textDiv.className = "msg-text";
+    textDiv.textContent = text;
+    div.appendChild(textDiv);
+
+    var meta = document.createElement("div");
+    meta.className = "msg-meta";
+    var time = document.createElement("span");
+    time.className = "msg-time";
+    time.textContent = timestamp;
+    meta.appendChild(time);
+    if (isMine) {
+        var tick = document.createElement("span");
+        tick.className = "msg-tick";
+        tick.textContent = "✓✓";
+        meta.appendChild(tick);
+    }
+    div.appendChild(meta);
+
+    div.appendChild(buildReactionPills(messageId, reactionsObj || {}, "room", currentRoom));
+
+    messages.appendChild(div);
+    messages.scrollTop = messages.scrollHeight;
+}
+
+function addSystemMessage(text) {
+    var messages = document.getElementById("messages");
+    var div = document.createElement("div");
+    div.className = "system-msg";
+    var span = document.createElement("span");
+    span.textContent = text;
+    div.appendChild(span);
+    messages.appendChild(div);
+    messages.scrollTop = messages.scrollHeight;
+}
+
+// ── Reaction updates (room + dm share this event) ──
+socket.on("reaction_update", function(data) {
+    var selector = "[data-message-id='" + data.messageId + "']";
+    var el = document.querySelector("#messages " + selector) || document.querySelector("#dm-messages " + selector);
+    if (!el) return;
+
+    var oldPills = el.querySelector(".msg-reactions");
+    var isDm = el.closest("#dm-messages") !== null;
+    var scope = isDm ? "dm" : "room";
+    var target = isDm ? currentDmUser : currentRoom;
+    var newPills = buildReactionPills(data.messageId, data.reactions, scope, target);
+    if (oldPills) {
+        el.replaceChild(newPills, oldPills);
+    } else {
+        el.appendChild(newPills);
+    }
+});
+
+// ── Private messaging ──
+function openDM(username) {
+    currentDmUser = username;
+    document.getElementById("dm-with-name").textContent = username;
+    document.getElementById("dm-avatar").textContent = getInitial(username);
+    document.getElementById("dm-panel").classList.add("open");
+    document.getElementById("dm-overlay").classList.add("open");
+    document.getElementById("dm-messages").innerHTML = "";
+
+    // refresh online list highlight
+    var items = document.querySelectorAll(".online-user");
+    items.forEach(function(item) { item.classList.remove("dm-active"); });
+
+    socket.emit("get_dm_history", { with: username });
+    document.getElementById("dm-input").focus();
+}
+
+function closeDM() {
+    document.getElementById("dm-panel").classList.remove("open");
+    document.getElementById("dm-overlay").classList.remove("open");
+    currentDmUser = null;
+}
+
+socket.on("dm_history", function(data) {
+    if (data.with !== currentDmUser) return;
+    var container = document.getElementById("dm-messages");
+    container.innerHTML = "";
+    if (data.messages.length === 0) {
+        var empty = document.createElement("div");
+        empty.className = "dm-empty";
+        empty.textContent = "No messages yet. Say hi to " + data.with + "!";
+        container.appendChild(empty);
+        return;
+    }
+    for (var i = 0; i < data.messages.length; i++) {
+        var m = data.messages[i];
+        addDmMessage(m.from, m.text, m.timestamp, m.from === myUsername, m.id, m.reactions || {});
+    }
+});
+
+socket.on("new_dm", function(data) {
+    var otherUser = data.from === myUsername ? data.to : data.from;
+
+    // If the panel for this conversation is open, render immediately
+    if (currentDmUser === otherUser) {
+        var container = document.getElementById("dm-messages");
+        var emptyMsg = container.querySelector(".dm-empty");
+        if (emptyMsg) emptyMsg.remove();
+        addDmMessage(data.from, data.text, data.timestamp, data.from === myUsername, data.id, {});
+    } else if (data.from !== myUsername) {
+        // Notify of a new DM from someone whose panel isn't open
+        addSystemMessage("New private message from " + data.from + " — click their name to view");
+    }
+});
+
+function addDmMessage(fromUsername, text, timestamp, isMine, messageId, reactionsObj) {
+    var container = document.getElementById("dm-messages");
+    var div = document.createElement("div");
+    div.className = "message " + (isMine ? "mine" : "theirs");
+    div.setAttribute("data-message-id", messageId);
+
+    div.appendChild(buildReactionPicker(messageId, "dm", currentDmUser));
+
+    if (!isMine) {
+        var sender = document.createElement("div");
+        sender.className = "msg-sender";
+        sender.textContent = fromUsername;
+        div.appendChild(sender);
+    }
+
+    var textDiv = document.createElement("div");
+    textDiv.className = "msg-text";
+    textDiv.textContent = text;
+    div.appendChild(textDiv);
+
+    var meta = document.createElement("div");
+    meta.className = "msg-meta";
+    var time = document.createElement("span");
+    time.className = "msg-time";
+    time.textContent = timestamp;
+    meta.appendChild(time);
+    div.appendChild(meta);
+
+    div.appendChild(buildReactionPills(messageId, reactionsObj || {}, "dm", currentDmUser));
+
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+}
+
+function sendDM() {
+    var input = document.getElementById("dm-input");
+    var text = input.value.trim();
+    if (!text || !currentDmUser) return;
+    socket.emit("send_dm", { to: currentDmUser, text: text });
+    input.value = "";
+}
+
+function handleDmKey(e) { if (e.key === "Enter") sendDM(); }
+</script>
+</body>
+</html>
