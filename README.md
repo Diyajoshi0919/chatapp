@@ -68,15 +68,4 @@ By default the server listens on port `3000`, or the value of the `PORT` environ
 
 > **Note:** All state (messages, reactions, online users) lives in memory and resets when the server restarts. There is currently no database — see [Future Improvements](#future-improvements) below.
 
-## Future Improvements
 
-- [ ] Persist messages and reactions to a database (e.g. SQLite/Postgres/Redis) so history survives restarts
-- [ ] Server-side input validation (message length, type checks) and basic rate limiting
-- [ ] Enforce unique usernames at join time
-- [ ] Validate room names against the known room list
-- [ ] Restrict CORS to a specific origin in production
-- [ ] Support horizontal scaling via the Socket.IO Redis adapter
-
-## License
-
-ISC
