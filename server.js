@@ -5,21 +5,7 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-
-// Render's free-tier proxy (and most reverse proxies/load balancers) will
-// close a connection it considers idle. Socket.IO's defaults (pingInterval
-// 25s / pingTimeout 20s) are usually fine on a normal host, but on Render's
-// free tier connections were dropping mid-chat — tightening the heartbeat
-// keeps traffic flowing often enough that the proxy never sees the socket
-// as idle, and detects a truly dead connection faster too.
-const io = new Server(server, {
-    pingInterval: 10000,  // ping every 10s instead of 25s
-    pingTimeout: 5000,    // give up and mark disconnected after 5s of silence
-    cors: {
-        origin: '*',
-        methods: ['GET', 'POST']
-    }
-});
+const io = new Server(server);
 
 app.use(express.static(path.join(__dirname, 'frontend')));
 
@@ -76,32 +62,18 @@ io.on('connection', (socket) => {
         const username = data.username;
         const room = data.room;
 
-        // If this username already has an active connection (e.g. they just
-        // reconnected after a dropped WebSocket — common on Render's free
-        // tier), that old socket is stale. Clean it up instead of leaving a
-        // ghost entry behind in the online-users list.
-        const previousSocketId = usernameToSocket.get(username);
-        const isReconnect = previousSocketId && previousSocketId !== socket.id;
-        if (isReconnect) {
-            users.delete(previousSocketId);
-        }
-
         users.set(socket.id, { username, room });
         usernameToSocket.set(username, socket.id);
         socket.join(room);
         socket.join('user:' + username); // personal channel for DMs
 
-        console.log(username + (isReconnect ? ' reconnected to room: ' : ' joined room: ') + room);
+        console.log(username + ' joined room: ' + room);
 
-        // Only announce a genuine first-time join — not every reconnect,
-        // or the chat would get spammed with "X joined" on every blip.
-        if (!isReconnect) {
-            io.to(room).emit('user_joined', {
-                username: username,
-                message: username + ' joined the chat',
-                timestamp: getTime()
-            });
-        }
+        io.to(room).emit('user_joined', {
+            username: username,
+            message: username + ' joined the chat',
+            timestamp: getTime()
+        });
 
         // Send recent history for the room, with current reaction state attached
         const history = (roomHistory.get(room) || []).map(function(msg) {
@@ -249,39 +221,24 @@ io.on('connection', (socket) => {
         if (user) {
             console.log(user.username + ' disconnected');
 
-            const disconnectedUsername = user.username;
-            const disconnectedRoom = user.room;
+            io.to(user.room).emit('user_left', {
+                username: user.username,
+                message: user.username + ' left the chat',
+                timestamp: getTime()
+            });
 
             users.delete(socket.id);
-            if (usernameToSocket.get(disconnectedUsername) === socket.id) {
-                usernameToSocket.delete(disconnectedUsername);
+            if (usernameToSocket.get(user.username) === socket.id) {
+                usernameToSocket.delete(user.username);
             }
-            sendRoomUsers(disconnectedRoom);
-
-            // Wait a moment before announcing "left the chat" — if this was
-            // just a brief connection drop (common on free-tier hosting),
-            // the client will reconnect and re-join almost immediately, and
-            // we don't want to spam the room with a false departure message.
-            setTimeout(function() {
-                const stillAway = usernameToSocket.get(disconnectedUsername) === undefined;
-                if (stillAway) {
-                    io.to(disconnectedRoom).emit('user_left', {
-                        username: disconnectedUsername,
-                        message: disconnectedUsername + ' left the chat',
-                        timestamp: getTime()
-                    });
-                }
-            }, 3000);
+            sendRoomUsers(user.room);
         }
     });
 
 });
 
-// Render (and most hosts) assign the port dynamically via process.env.PORT —
-// hardcoding 3000 means the platform's router may not find the app at all,
-// or only works by coincidence. Fall back to 3000 for local dev.
 const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, function() {
-    console.log('Chat Server running on port ' + PORT);
+    console.log('Chat Server running at http://localhost:' + PORT);
 });
