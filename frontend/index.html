@@ -589,9 +589,30 @@
             display: none;
         }
         .dm-overlay.open { display: block; }
+
+        /* ── Connection status banner ── */
+        .conn-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 13px;
+            padding: 6px;
+            color: white;
+            z-index: 200;
+            transform: translateY(-100%);
+            transition: transform 0.25s ease;
+        }
+        .conn-banner.show { transform: translateY(0); }
+        .conn-banner.reconnecting { background: #f9ab00; color: #202124; }
+        .conn-banner.offline { background: #d93025; }
+        .conn-banner.online { background: #1e8e3e; }
     </style>
 </head>
 <body>
+
+<div class="conn-banner" id="conn-banner"></div>
 
 <!-- LOGIN -->
 <div class="login-screen" id="login-screen">
@@ -688,13 +709,21 @@
 </div>
 
 <script>
-var socket = io();
+var socket = io({
+    transports: ['websocket', 'polling'], // try websocket first, fall back if blocked
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    timeout: 20000
+});
 var myUsername = "";
 var currentRoom = "general";
 var typingTimer = null;
 var isTyping = false;
 var availableRooms = ["general", "tech", "random"];
 var REACTION_EMOJIS = ["👍", "❤️", "😂"];
+var hasJoinedOnce = false; // so we know whether a 'connect' is an initial join or a reconnect
 
 var roomIcons = { general: "&#127758;", tech: "&#128187;", random: "&#127922;" };
 var roomColors = { general: "general", tech: "tech", random: "random" };
@@ -704,6 +733,49 @@ var currentDmUser = null; // username currently open in the DM panel
 
 socket.on("rooms_list", function(rooms) {
     availableRooms = rooms;
+});
+
+// ── Connection status / resilience ──
+var connBanner = document.getElementById("conn-banner");
+
+function showBanner(text, cls) {
+    connBanner.textContent = text;
+    connBanner.className = "conn-banner show " + cls;
+}
+
+function hideBannerSoon() {
+    setTimeout(function() {
+        connBanner.classList.remove("show");
+    }, 2000);
+}
+
+socket.on("connect", function() {
+    if (hasJoinedOnce) {
+        // This is a reconnect after a drop — silently rejoin our room so
+        // history/user-list/DM routing all come back without the person
+        // having to do anything.
+        socket.emit("join", { username: myUsername, room: currentRoom });
+        showBanner("Back online", "online");
+        hideBannerSoon();
+    }
+});
+
+socket.on("disconnect", function() {
+    if (hasJoinedOnce) {
+        showBanner("Connection lost — reconnecting...", "offline");
+    }
+});
+
+socket.on("reconnect_attempt", function() {
+    if (hasJoinedOnce) {
+        showBanner("Reconnecting...", "reconnecting");
+    }
+});
+
+socket.on("connect_error", function() {
+    if (hasJoinedOnce) {
+        showBanner("Connection trouble — retrying...", "offline");
+    }
 });
 
 function getInitial(name) {
@@ -719,6 +791,7 @@ function joinChat() {
     currentRoom = room;
 
     socket.emit("join", { username: username, room: room });
+    hasJoinedOnce = true;
 
     document.getElementById("login-screen").style.display = "none";
     document.getElementById("chat-app").style.display = "flex";
