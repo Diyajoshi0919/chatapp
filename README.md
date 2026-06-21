@@ -35,6 +35,5 @@ chatapp/
 - DMs are delivered to a personal Socket.IO channel (`user:<username>`) so they reach a user regardless of which room they're currently in.
 - Reactions are stored per message ID and summarized (emoji → list of usernames) before being pushed to clients.
 
-> **Note:** All state (messages, reactions, online users) lives in memory and resets when the server restarts. There is currently no database — see [Future Improvements](#future-improvements) below.
 
 
