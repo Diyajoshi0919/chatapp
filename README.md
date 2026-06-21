@@ -28,37 +28,6 @@ chatapp/
     └── index.html          # Single-page chat client
 ```
 
-## Getting Started
-
-### Prerequisites
-
-- [Node.js](https://nodejs.org/) (v18 or later recommended)
-- npm
-
-### Installation
-
-```bash
-git clone https://github.com/<your-username>/<repo-name>.git
-cd <repo-name>
-npm install
-```
-
-### Running locally
-
-```bash
-npm start
-```
-
-The app will be available at **http://localhost:3000**
-
-### Running in development
-
-```bash
-node server.js
-```
-
-By default the server listens on port `3000`, or the value of the `PORT` environment variable if set (useful for hosting platforms like Render, Railway, etc.).
-
 ## How It Works
 
 - On joining, the client picks a username and a room. The server tracks each connected socket's username/room in memory.
